@@ -1,0 +1,346 @@
+import 'dart:io'; // Indispensable pour manipuler les fichiers sur Android/PC
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:universal_html/html.dart' as html; 
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: "Application de Notes",
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.amber,
+          brightness: Brightness.light,
+        ),
+      ),
+      home: const NotesListScreen(),
+    );
+  }
+}
+
+class Note {
+  String title;
+  String content;
+  String date;
+
+  Note({required this.title, required this.content, required this.date});
+}
+
+class NotesListScreen extends StatefulWidget {
+  const NotesListScreen({super.key});
+
+  @override
+  State<NotesListScreen> createState() => _NotesListScreenState();
+}
+
+class _NotesListScreenState extends State<NotesListScreen> {
+  List<Note> _notes = [
+    Note(title: "⚡ Idées Flutter", content: "Ajouter des animations de transition et un mode sombre à l'application.", date: "28 Oct"),
+    Note(title: "🛒 Liste de courses", content: "Pain complet, lait d'amande, fruits de saison, café en grains.", date: "28 Oct"),
+  ];
+
+  static const String _noteSeparator = "\n==================== NOTE ====================\n";
+
+  void _exportNotesAsTxt() {
+    if (_notes.isEmpty) {
+      _showSnackBar("Aucune note à exporter.");
+      return;
+    }
+
+    StringBuffer txtBuffer = StringBuffer();
+    txtBuffer.write("--- EXPORT DE MES NOTES ---\n");
+
+    for (var note in _notes) {
+      txtBuffer.write(_noteSeparator);
+      txtBuffer.write("TITRE : \${note.title}\n");
+      txtBuffer.write("DATE : \${note.date}\n");
+      txtBuffer.write("CONTENU :\n\${note.content}\n");
+    }
+
+    String txtString = txtBuffer.toString();
+
+    if (kIsWeb) {
+      final bytes = utf8.encode(txtString);
+      final blob = html.Blob([bytes], 'text/plain');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute("download", "mes_notes.txt")
+        ..click();
+      html.Url.revokeObjectUrl(url);
+    } else {
+      debugPrint("Contenu du fichier TXT :\n\$txtString");
+      _showSnackBar("Notes exportées dans la console.");
+    }
+  }
+
+  Future<void> _importNotesFromTxt() async {
+    try {
+      // Sélection du fichier avec la syntaxe v12+
+      List<PlatformFile> files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['txt'],
+      );
+
+      if (files.isNotEmpty) {
+        final file = files.first;
+        
+        // CORRECTION ICI : Utilisation de readAsBytes() pour lire le contenu
+        final fileBytes = await file.readAsBytes();
+        final fileContent = utf8.decode(fileBytes);
+        
+        List<String> rawNotes = fileContent.split(_noteSeparator);
+        if (rawNotes.isNotEmpty) rawNotes.removeAt(0);
+
+        List<Note> importedNotes = [];
+
+        for (String rawNote in rawNotes) {
+          if (rawNote.trim().isEmpty) continue;
+
+          List<String> lines = rawNote.split('\n');
+          String title = "";
+          String date = "";
+          StringBuffer contentBuffer = StringBuffer();
+          bool readingContent = false;
+
+          for (String line in lines) {
+            if (line.startsWith("TITRE : ")) {
+              title = line.replaceFirst("TITRE : ", "").trim();
+            } else if (line.startsWith("DATE : ")) {
+              date = line.replaceFirst("DATE : ", "").trim();
+            } else if (line.startsWith("CONTENU :")) {
+              readingContent = true;
+            } else if (readingContent) {
+              contentBuffer.writeln(line);
+            }
+          }
+
+          if (title.isNotEmpty) {
+            importedNotes.add(Note(
+              title: title,
+              content: contentBuffer.toString().trim(),
+              date: date.isEmpty ? '28 Oct' : date,
+            ));
+          }
+        }
+
+        if (importedNotes.isEmpty) throw Exception();
+
+        setState(() {
+          _notes = importedNotes;
+        });
+
+        _showSnackBar("Notes importées avec succès !");
+      }
+    } catch (e) {
+      _showSnackBar("Erreur lors de l'importation du fichier.");
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.2),
+      appBar: AppBar(
+        title: const Text('Mes Notes', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: theme.colorScheme.primaryContainer,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download),
+            tooltip: 'Importer',
+            onPressed: _importNotesFromTxt,
+          ),
+          IconButton(
+            icon: const Icon(Icons.file_upload),
+            tooltip: 'Exporter',
+            onPressed: _exportNotesAsTxt,
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: _notes.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.note_alt_outlined, size: 64, color: theme.colorScheme.outline),
+                  const SizedBox(height: 16),
+                  Text('Aucune note pour le moment', style: TextStyle(color: theme.colorScheme.outline)),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: _notes.length,
+              itemBuilder: (context, index) {
+                final note = _notes[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    title: Text(
+                      note.title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 6.0),
+                      child: Text(
+                        note.content,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    trailing: Text(
+                      note.date,
+                      style: TextStyle(color: theme.colorScheme.outline, fontSize: 12),
+                    ),
+                    onTap: () async {
+                      final Note? editedNote = await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => NoteFormScreen(note: note)),
+                      );
+                      if (editedNote != null) {
+                        setState(() {
+                          _notes[index] = editedNote;
+                        });
+                      }
+                    },
+                  ),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: theme.colorScheme.primaryContainer,
+        child: const Icon(Icons.add),
+        onPressed: () async {
+          final Note? newNote = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const NoteFormScreen()),
+          );
+          if (newNote != null) {
+            setState(() {
+              _notes.add(newNote);
+            });
+          }
+        },
+      ),
+    );
+  }
+}
+
+class NoteFormScreen extends StatefulWidget {
+  final Note? note;
+  const NoteFormScreen({super.key, this.note});
+
+  @override
+  State<NoteFormScreen> createState() => _NoteFormScreenState();
+}
+
+class _NoteFormScreenState extends State<NoteFormScreen> {
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _contentController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.note != null) {
+      _titleController.text = widget.note!.title;
+      _contentController.text = widget.note!.content;
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bool isEditing = widget.note != null;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(isEditing ? 'Modifier la note' : 'Nouvelle note'),
+        backgroundColor: theme.colorScheme.primaryContainer,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Titre',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.title),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: TextField(
+                controller: _contentController,
+                maxLines: null,
+                keyboardType: TextInputType.multiline,
+                decoration: const InputDecoration(
+                  labelText: 'Contenu de la note',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+              ),
+              onPressed: () {
+                final String title = _titleController.text.trim();
+                final String content = _contentController.text.trim();
+
+                if (title.isNotEmpty && content.isNotEmpty) {
+                  if (isEditing) {
+                    widget.note!.title = title;
+                    widget.note!.content = content;
+                    widget.note!.date = '28 Oct (Modifié)';
+                    Navigator.pop(context, widget.note);
+                  } else {
+                    final Note newNote = Note(
+                      title: title,
+                      content: content,
+                      date: '28 Oct',
+                    );
+                    Navigator.pop(context, newNote);
+                  }
+                }
+              },
+              child: Text(isEditing ? 'Enregistrer les modifications' : 'Créer la note'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
