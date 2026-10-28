@@ -1,10 +1,7 @@
-import 'dart:io'; // Indispensable pour manipuler les fichiers sur Android/PC
-import 'dart:convert';
-import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker/file_picker.dart'; 
 import 'package:universal_html/html.dart' as html; 
 
 void main() {
@@ -54,7 +51,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
 
   static const String _noteSeparator = "\n==================== NOTE ====================\n";
 
-  void _exportNotesAsTxt() {
+  Future<void> _exportNotesAsTxt() async {
     if (_notes.isEmpty) {
       _showSnackBar("Aucune note à exporter.");
       return;
@@ -71,24 +68,39 @@ class _NotesListScreenState extends State<NotesListScreen> {
     }
 
     String txtString = txtBuffer.toString();
+    List<int> bytes = utf8.encode(txtString);
 
     if (kIsWeb) {
-      final bytes = utf8.encode(txtString);
       final blob = html.Blob([bytes], 'text/plain');
       final url = html.Url.createObjectUrlFromBlob(blob);
       final anchor = html.AnchorElement(href: url)
         ..setAttribute("download", "mes_notes.txt")
         ..click();
       html.Url.revokeObjectUrl(url);
+      _showSnackBar("Notes téléchargées !");
     } else {
-      debugPrint("Contenu du fichier TXT :\n\$txtString");
-      _showSnackBar("Notes exportées dans la console.");
+      try {
+        String? outputFile = await FilePicker.saveFile(
+          dialogTitle: 'Choisir où enregistrer vos notes',
+          fileName: 'mes_notes.txt',
+          type: FileType.custom,
+          allowedExtensions: ['txt'],
+          bytes: Uint8List.fromList(bytes),
+        );
+
+        if (outputFile != null) {
+          _showSnackBar("Fichier enregistré avec succès !");
+        } else {
+          _showSnackBar("Exportation annulée.");
+        }
+      } catch (e) {
+        _showSnackBar("Erreur lors du choix du dossier : \$e");
+      }
     }
   }
 
   Future<void> _importNotesFromTxt() async {
     try {
-      // Sélection du fichier avec la syntaxe v12+
       List<PlatformFile> files = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['txt'],
@@ -96,8 +108,6 @@ class _NotesListScreenState extends State<NotesListScreen> {
 
       if (files.isNotEmpty) {
         final file = files.first;
-        
-        // CORRECTION ICI : Utilisation de readAsBytes() pour lire le contenu
         final fileBytes = await file.readAsBytes();
         final fileContent = utf8.decode(fileBytes);
         
