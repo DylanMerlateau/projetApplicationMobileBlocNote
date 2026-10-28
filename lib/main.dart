@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data'; // Indispensable pour Uint8List
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart'; 
@@ -62,13 +63,14 @@ class _NotesListScreenState extends State<NotesListScreen> {
 
     for (var note in _notes) {
       txtBuffer.write(_noteSeparator);
-      txtBuffer.write("TITRE : \${note.title}\n");
-      txtBuffer.write("DATE : \${note.date}\n");
-      txtBuffer.write("CONTENU :\n\${note.content}\n");
+      txtBuffer.write("TITRE : ${note.title}\n");
+      txtBuffer.write("DATE : ${note.date}\n");
+      txtBuffer.write("CONTENU :\n${note.content}\n");
     }
 
     String txtString = txtBuffer.toString();
     List<int> bytes = utf8.encode(txtString);
+    Uint8List nativeBytes = Uint8List.fromList(bytes);
 
     if (kIsWeb) {
       final blob = html.Blob([bytes], 'text/plain');
@@ -80,12 +82,12 @@ class _NotesListScreenState extends State<NotesListScreen> {
       _showSnackBar("Notes téléchargées !");
     } else {
       try {
-        String? outputFile = await FilePicker.saveFile(
+        Uri? outputFile = await FilePicker.saveFile(
           dialogTitle: 'Choisir où enregistrer vos notes',
           fileName: 'mes_notes.txt',
           type: FileType.custom,
           allowedExtensions: ['txt'],
-          bytes: Uint8List.fromList(bytes),
+          bytes: nativeBytes, 
         );
 
         if (outputFile != null) {
