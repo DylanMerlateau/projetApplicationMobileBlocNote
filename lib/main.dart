@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'dart:typed_data'; // Indispensable pour Uint8List
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart'; 
 import 'package:universal_html/html.dart' as html; 
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -35,6 +36,22 @@ class Note {
   String date;
 
   Note({required this.title, required this.content, required this.date});
+
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'content': content,
+      'date': date,
+    };
+  }
+
+  factory Note.fromMap(Map<String, dynamic> map) {
+    return Note(
+      title: map['title'] ?? '',
+      content: map['content'] ?? '',
+      date: map['date'] ?? '',
+    );
+  }
 }
 
 class NotesListScreen extends StatefulWidget {
@@ -45,12 +62,64 @@ class NotesListScreen extends StatefulWidget {
 }
 
 class _NotesListScreenState extends State<NotesListScreen> {
-  List<Note> _notes = [
-    Note(title: "⚡ Idées Flutter", content: "Ajouter des animations de transition et un mode sombre à l'application.", date: "28 Oct"),
-    Note(title: "🛒 Liste de courses", content: "Pain complet, lait d'amande, fruits de saison, café en grains.", date: "28 Oct"),
-  ];
+  List<Note> _notes = [];
+  List<Note> _filteredNotes = [];
+  final TextEditingController _searchController = TextEditingController();
 
   static const String _noteSeparator = "\n==================== NOTE ====================\n";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+    _searchController.addListener(_filterNotes);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterNotes() {
+    final query = _searchController.text.toLowerCase().trim();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredNotes = List.from(_notes);
+      } else {
+        _filteredNotes = _notes.where((note) {
+          final titleMatch = note.title.toLowerCase().contains(query);
+          final contentMatch = note.content.toLowerCase().contains(query);
+          return titleMatch || contentMatch;
+        }).toList();
+      }
+    });
+  }
+
+  Future<void> _loadNotes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? notesJson = prefs.getString('saved_notes');
+    
+    if (notesJson != null) {
+      final List<dynamic> decodedList = jsonDecode(notesJson);
+      _notes = decodedList.map((item) => Note.fromMap(item)).toList();
+    } else {
+      _notes = [
+        Note(title: "⚡ Idées Flutter", content: "Ajouter des animations de transition et un mode sombre à l'application.", date: "28 Oct"),
+        Note(title: "🛒 Liste de courses", content: "Pain complet, lait d'amande, fruits de saison, café en grains.", date: "28 Oct"),
+      ];
+      _saveNotes();
+    }
+    _filterNotes();
+  }
+
+  Future<void> _saveNotes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<Map<String, dynamic>> jsonList = _notes.map((note) => note.toMap()).toList();
+    final String encodedData = jsonEncode(jsonList);
+    
+    await prefs.setString('saved_notes', encodedData);
+  }
 
   Future<void> _exportNotesAsTxt() async {
     if (_notes.isEmpty) {
@@ -63,9 +132,9 @@ class _NotesListScreenState extends State<NotesListScreen> {
 
     for (var note in _notes) {
       txtBuffer.write(_noteSeparator);
-      txtBuffer.write("TITRE : ${note.title}\n");
-      txtBuffer.write("DATE : ${note.date}\n");
-      txtBuffer.write("CONTENU :\n${note.content}\n");
+      txtBuffer.write("TITRE : \${note.title}\n");
+      txtBuffer.write("DATE : \${note.date}\n");
+      txtBuffer.write("CONTENU :\n\${note.content}\n");
     }
 
     String txtString = txtBuffer.toString();
@@ -153,7 +222,9 @@ class _NotesListScreenState extends State<NotesListScreen> {
         setState(() {
           _notes = importedNotes;
         });
-
+        
+        _saveNotes();
+        _filterNotes();
         _showSnackBar("Notes importées avec succès !");
       }
     } catch (e) {
@@ -190,57 +261,90 @@ class _NotesListScreenState extends State<NotesListScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: _notes.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.note_alt_outlined, size: 64, color: theme.colorScheme.outline),
-                  const SizedBox(height: 16),
-                  Text('Aucune note pour le moment', style: TextStyle(color: theme.colorScheme.outline)),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: _notes.length,
-              itemBuilder: (context, index) {
-                final note = _notes[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    title: Text(
-                      note.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: SearchBar(
+              controller: _searchController,
+              hintText: "Rechercher une note...",
+              leading: const Icon(Icons.search),
+              trailing: _searchController.text.isNotEmpty
+                  ? [
+                      IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => _searchController.clear(),
+                      )
+                    ]
+                  : null,
+              elevation: WidgetStateProperty.all(0),
+              backgroundColor: WidgetStateProperty.all(theme.colorScheme.surfaceContainerHigh),
+            ),
+          ),
+          
+          Expanded(
+            child: _filteredNotes.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.search_off, size: 64, color: theme.colorScheme.outline),
+                        const SizedBox(height: 16),
+                        Text(
+                          _notes.isEmpty ? 'Aucune note pour le moment' : 'Aucun résultat trouvé',
+                          style: TextStyle(color: theme.colorScheme.outline),
+                        ),
+                      ],
                     ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 6.0),
-                      child: Text(
-                        note.content,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    trailing: Text(
-                      note.date,
-                      style: TextStyle(color: theme.colorScheme.outline, fontSize: 12),
-                    ),
-                    onTap: () async {
-                      final Note? editedNote = await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => NoteFormScreen(note: note)),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _filteredNotes.length,
+                    itemBuilder: (context, index) {
+                      final note = _filteredNotes[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          title: Text(
+                            note.title,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 6.0),
+                            child: Text(
+                              note.content,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          trailing: Text(
+                            note.date,
+                            style: TextStyle(color: theme.colorScheme.outline, fontSize: 12),
+                          ),
+                          onTap: () async {
+                            final Note? editedNote = await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => NoteFormScreen(note: note)),
+                            );
+                            if (editedNote != null) {
+                              final realIndex = _notes.indexOf(note);
+                              if (realIndex != -1) {
+                                setState(() {
+                                  _notes[realIndex] = editedNote;
+                                });
+                                _saveNotes();
+                                _filterNotes();
+                              }
+                            }
+                          },
+                        ),
                       );
-                      if (editedNote != null) {
-                        setState(() {
-                          _notes[index] = editedNote;
-                        });
-                      }
                     },
                   ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: theme.colorScheme.primaryContainer,
         child: const Icon(Icons.add),
@@ -253,6 +357,9 @@ class _NotesListScreenState extends State<NotesListScreen> {
             setState(() {
               _notes.add(newNote);
             });
+            _saveNotes();
+            _searchController.clear();
+            _filterNotes();
           }
         },
       ),
