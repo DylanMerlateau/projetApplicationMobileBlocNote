@@ -38,11 +38,7 @@ class Note {
   Note({required this.title, required this.content, required this.date});
 
   Map<String, dynamic> toMap() {
-    return {
-      'title': title,
-      'content': content,
-      'date': date,
-    };
+    return {'title': title, 'content': content, 'date': date};
   }
 
   factory Note.fromMap(Map<String, dynamic> map) {
@@ -63,6 +59,7 @@ class NotesListScreen extends StatefulWidget {
 
 class _NotesListScreenState extends State<NotesListScreen> {
   List<Note> _notes = [];
+  Color _currentBackgroundColor = Colors.amber.withOpacity(0.1);
   List<Note> _filteredNotes = [];
   final TextEditingController _searchController = TextEditingController();
 
@@ -99,14 +96,12 @@ class _NotesListScreenState extends State<NotesListScreen> {
   Future<void> _loadNotes() async {
     final prefs = await SharedPreferences.getInstance();
     final String? notesJson = prefs.getString('saved_notes');
-    
     if (notesJson != null) {
       final List<dynamic> decodedList = jsonDecode(notesJson);
       _notes = decodedList.map((item) => Note.fromMap(item)).toList();
     } else {
       _notes = [
-        Note(title: "⚡ Idées Flutter", content: "Ajouter des animations de transition et un mode sombre à l'application.", date: "28 Oct"),
-        Note(title: "🛒 Liste de courses", content: "Pain complet, lait d'amande, fruits de saison, café en grains.", date: "28 Oct"),
+        Note(title: "⚡ Idées Flutter", content: "Ajouter des animations de transition.", date: "28 Oct"),
       ];
       _saveNotes();
     }
@@ -121,230 +116,117 @@ class _NotesListScreenState extends State<NotesListScreen> {
   }
 
   Future<void> _exportNotesAsTxt() async {
-    if (_notes.isEmpty) {
-      _showSnackBar("Aucune note à exporter.");
-      return;
-    }
-
+    if (_notes.isEmpty) return;
     StringBuffer txtBuffer = StringBuffer();
-    txtBuffer.write("--- EXPORT DE MES NOTES ---\n");
-
     for (var note in _notes) {
-      txtBuffer.write("\n$_noteSeparator\n");
-      txtBuffer.write("TITRE : ${note.title}\n");
-      txtBuffer.write("DATE : ${note.date}\n");
-      txtBuffer.write("CONTENU :\n${note.content}\n");
+      txtBuffer.write("\n$_noteSeparator\nTITRE : ${note.title}\nCONTENU :\n${note.content}\n");
     }
-
-    String txtString = txtBuffer.toString();
-    List<int> bytes = utf8.encode(txtString);
+    List<int> bytes = utf8.encode(txtBuffer.toString());
     Uint8List nativeBytes = Uint8List.fromList(bytes);
 
     if (kIsWeb) {
       final blob = html.Blob([bytes], 'text/plain');
       final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute("download", "mes_notes.txt")
-        ..click();
-      html.Url.revokeObjectUrl(url);
-      _showSnackBar("Notes téléchargées !");
+      html.AnchorElement(href: url)..setAttribute("download", "notes.txt")..click();
     } else {
       try {
         Uri? outputFile = await FilePicker.saveFile(
           dialogTitle: 'Choisir où enregistrer vos notes',
-          fileName: 'mes_notes.txt',
+          fileName: 'notes.txt',
           type: FileType.custom,
           allowedExtensions: ['txt'],
-          bytes: nativeBytes, 
+          bytes: nativeBytes,
         );
-
         if (outputFile != null) {
           _showSnackBar("Fichier enregistré avec succès !");
-        } else {
-          _showSnackBar("Exportation annulée.");
         }
-      } catch (e) {
-        _showSnackBar("Erreur lors du choix du dossier : $e");
-      }
+      } catch (_) {}
     }
   }
 
   Future<void> _importNotesFromTxt() async {
     try {
-      List<PlatformFile> files = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['txt'],
-      );
-
+      List<PlatformFile> files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['txt']);
       if (files.isNotEmpty) {
         final file = files.first;
-        final fileBytes = await file.readAsBytes();
-        
-        // 1. On lit TOUT le texte brut du fichier d'un seul coup
-        final fileContent = utf8.decode(fileBytes);
-        
-        // 2. On extrait le nom du fichier pour en faire le titre
-        String fileName = file.name; 
-        String noteTitle = "Sans titre";
-        
-        if (fileName.contains('.')) {
-          noteTitle = fileName.split('.').first; // Retire le ".txt"
-        } else {
-          noteTitle = fileName;
-        }
-
-        // 3. On crée la note avec le contenu brut complet
-        final Note newImportedNote = Note(
-          title: noteTitle,
-          content: fileContent, 
-          date: '28 Oct',
-        );
-
-        // 4. On l'ajoute à la suite de la liste existante
+        final fileContent = utf8.decode(await file.readAsBytes());
         setState(() {
-          _notes.add(newImportedNote);
+          _notes.add(Note(title: file.name.split('.').first, content: fileContent, date: '28 Oct'));
         });
-        
-        // 5. Sauvegarde et rafraîchissement
-        await _saveNotes(); 
-        _searchController.clear(); 
-        _filterNotes(); 
-        
-        _showSnackBar("Fichier '$fileName' importé avec succès !");
+        await _saveNotes();
+        _searchController.clear();
+        _filterNotes();
+        _showSnackBar("Importé avec succès !");
       }
-    } catch (e) {
-      _showSnackBar("Erreur lors de la lecture du fichier .txt");
-    }
+    } catch (_) {}
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
   }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return Scaffold(
-      backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.2),
+      backgroundColor: _currentBackgroundColor,
       appBar: AppBar(
         title: const Text('Mes Notes', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: theme.colorScheme.primaryContainer,
+        backgroundColor: _currentBackgroundColor.withOpacity(0.8),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.file_download),
-            tooltip: 'Importer',
-            onPressed: _importNotesFromTxt,
+          IconButton(icon: const Icon(Icons.file_download), onPressed: _importNotesFromTxt),
+          IconButton(icon: const Icon(Icons.file_upload), onPressed: _exportNotesAsTxt),
+          PopupMenuButton<Color>(
+            icon: const Icon(Icons.palette_outlined),
+            onSelected: (c) => setState(() => _currentBackgroundColor = c),
+            itemBuilder: (b) => [
+              const PopupMenuItem(value: Color(0xFFFFF8E1), child: Text('Jaune')),
+              const PopupMenuItem(value: Color(0xFFE3F2FD), child: Text('Bleu')),
+              const PopupMenuItem(value: Color(0xFFE8F5E9), child: Text('Vert')),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.file_upload),
-            tooltip: 'Exporter',
-            onPressed: _exportNotesAsTxt,
-          ),
-          const SizedBox(width: 8),
         ],
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const EdgeInsets.all(12),
             child: SearchBar(
               controller: _searchController,
-              hintText: "Rechercher une note...",
+              hintText: "Rechercher...",
               leading: const Icon(Icons.search),
-              trailing: _searchController.text.isNotEmpty
-                  ? [
-                      IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () => _searchController.clear(),
-                      )
-                    ]
-                  : null,
-              elevation: WidgetStateProperty.all(0),
-              backgroundColor: WidgetStateProperty.all(theme.colorScheme.surfaceContainerHigh),
             ),
           ),
-          
           Expanded(
-            child: _filteredNotes.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.search_off, size: 64, color: theme.colorScheme.outline),
-                        const SizedBox(height: 16),
-                        Text(
-                          _notes.isEmpty ? 'Aucune note pour le moment' : 'Aucun résultat trouvé',
-                          style: TextStyle(color: theme.colorScheme.outline),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _filteredNotes.length,
-                    itemBuilder: (context, index) {
-                      final note = _filteredNotes[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          title: Text(
-                            note.title,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 6.0),
-                            child: Text(
-                              note.content,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          trailing: Text(
-                            note.date,
-                            style: TextStyle(color: theme.colorScheme.outline, fontSize: 12),
-                          ),
-                          onTap: () async {
-                            final Note? editedNote = await Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => NoteFormScreen(note: note)),
-                            );
-                            if (editedNote != null) {
-                              final realIndex = _notes.indexOf(note);
-                              if (realIndex != -1) {
-                                setState(() {
-                                  _notes[realIndex] = editedNote;
-                                });
-                                _saveNotes();
-                                _filterNotes();
-                              }
-                            }
-                          },
-                        ),
-                      );
+            child: ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: _filteredNotes.length,
+              itemBuilder: (context, index) {
+                final note = _filteredNotes[index];
+                return Card(
+                  child: ListTile(
+                    title: Text(note.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(note.content, maxLines: 1),
+                    onTap: () async {
+                      final edited = await Navigator.push(context, MaterialPageRoute(builder: (c) => NoteFormScreen(note: note)));
+                      if (edited != null) {
+                        setState(() { _notes[_notes.indexOf(note)] = edited; });
+                        _saveNotes(); _filterNotes();
+                      }
                     },
                   ),
+                );
+              },
+            ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: theme.colorScheme.primaryContainer,
         child: const Icon(Icons.add),
         onPressed: () async {
-          final Note? newNote = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const NoteFormScreen()),
-          );
+          final newNote = await Navigator.push(context, MaterialPageRoute(builder: (c) => const NoteFormScreen()));
           if (newNote != null) {
-            setState(() {
-              _notes.add(newNote);
-            });
-            _saveNotes();
-            _searchController.clear();
-            _filterNotes();
+            setState(() { _notes.add(newNote); });
+            _saveNotes(); _filterNotes();
           }
         },
       ),
