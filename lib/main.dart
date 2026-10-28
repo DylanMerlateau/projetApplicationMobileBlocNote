@@ -66,7 +66,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
   List<Note> _filteredNotes = [];
   final TextEditingController _searchController = TextEditingController();
 
-  static const String _noteSeparator = "\n==================== NOTE ====================\n";
+  static const String _noteSeparator = "==================== NOTE ====================";
 
   @override
   void initState() {
@@ -117,7 +117,6 @@ class _NotesListScreenState extends State<NotesListScreen> {
     final prefs = await SharedPreferences.getInstance();
     final List<Map<String, dynamic>> jsonList = _notes.map((note) => note.toMap()).toList();
     final String encodedData = jsonEncode(jsonList);
-    
     await prefs.setString('saved_notes', encodedData);
   }
 
@@ -131,10 +130,10 @@ class _NotesListScreenState extends State<NotesListScreen> {
     txtBuffer.write("--- EXPORT DE MES NOTES ---\n");
 
     for (var note in _notes) {
-      txtBuffer.write(_noteSeparator);
-      txtBuffer.write("TITRE : \${note.title}\n");
-      txtBuffer.write("DATE : \${note.date}\n");
-      txtBuffer.write("CONTENU :\n\${note.content}\n");
+      txtBuffer.write("\n$_noteSeparator\n");
+      txtBuffer.write("TITRE : ${note.title}\n");
+      txtBuffer.write("DATE : ${note.date}\n");
+      txtBuffer.write("CONTENU :\n${note.content}\n");
     }
 
     String txtString = txtBuffer.toString();
@@ -165,7 +164,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
           _showSnackBar("Exportation annulée.");
         }
       } catch (e) {
-        _showSnackBar("Erreur lors du choix du dossier : \$e");
+        _showSnackBar("Erreur lors du choix du dossier : $e");
       }
     }
   }
@@ -180,55 +179,41 @@ class _NotesListScreenState extends State<NotesListScreen> {
       if (files.isNotEmpty) {
         final file = files.first;
         final fileBytes = await file.readAsBytes();
+        
+        // 1. On lit TOUT le texte brut du fichier d'un seul coup
         final fileContent = utf8.decode(fileBytes);
         
-        List<String> rawNotes = fileContent.split(_noteSeparator);
-        if (rawNotes.isNotEmpty) rawNotes.removeAt(0);
-
-        List<Note> importedNotes = [];
-
-        for (String rawNote in rawNotes) {
-          if (rawNote.trim().isEmpty) continue;
-
-          List<String> lines = rawNote.split('\n');
-          String title = "";
-          String date = "";
-          StringBuffer contentBuffer = StringBuffer();
-          bool readingContent = false;
-
-          for (String line in lines) {
-            if (line.startsWith("TITRE : ")) {
-              title = line.replaceFirst("TITRE : ", "").trim();
-            } else if (line.startsWith("DATE : ")) {
-              date = line.replaceFirst("DATE : ", "").trim();
-            } else if (line.startsWith("CONTENU :")) {
-              readingContent = true;
-            } else if (readingContent) {
-              contentBuffer.writeln(line);
-            }
-          }
-
-          if (title.isNotEmpty) {
-            importedNotes.add(Note(
-              title: title,
-              content: contentBuffer.toString().trim(),
-              date: date.isEmpty ? '28 Oct' : date,
-            ));
-          }
+        // 2. On extrait le nom du fichier pour en faire le titre
+        String fileName = file.name; 
+        String noteTitle = "Sans titre";
+        
+        if (fileName.contains('.')) {
+          noteTitle = fileName.split('.').first; // Retire le ".txt"
+        } else {
+          noteTitle = fileName;
         }
 
-        if (importedNotes.isEmpty) throw Exception();
+        // 3. On crée la note avec le contenu brut complet
+        final Note newImportedNote = Note(
+          title: noteTitle,
+          content: fileContent, 
+          date: '28 Oct',
+        );
 
+        // 4. On l'ajoute à la suite de la liste existante
         setState(() {
-          _notes = importedNotes;
+          _notes.add(newImportedNote);
         });
         
-        _saveNotes();
-        _filterNotes();
-        _showSnackBar("Notes importées avec succès !");
+        // 5. Sauvegarde et rafraîchissement
+        await _saveNotes(); 
+        _searchController.clear(); 
+        _filterNotes(); 
+        
+        _showSnackBar("Fichier '$fileName' importé avec succès !");
       }
     } catch (e) {
-      _showSnackBar("Erreur lors de l'importation du fichier.");
+      _showSnackBar("Erreur lors de la lecture du fichier .txt");
     }
   }
 
