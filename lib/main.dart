@@ -59,7 +59,13 @@ class NotesListScreen extends StatefulWidget {
 
 class _NotesListScreenState extends State<NotesListScreen> {
   List<Note> _notes = [];
-  Color _currentBackgroundColor = Colors.amber.withOpacity(0.1);
+   // --- À REMPLACER DANS LES VARIABLES DE VOTRE ÉCRAN ---
+  // On définit le Bleu Marine (0xFF002244) par défaut
+  Color _baseColor = const Color(0xFF002244); 
+  // Valeur de la réglette (0.0 = Noir complet, 1.0 = Couleur pure, 2.0 = Blanc éclatant)
+  double _colorIntensity = 1.0; 
+  // La couleur finale qui sera appliquée à l'écran
+  late Color _currentBackgroundColor;
   List<Note> _filteredNotes = [];
   final TextEditingController _searchController = TextEditingController();
 
@@ -70,8 +76,14 @@ class _NotesListScreenState extends State<NotesListScreen> {
     super.initState();
     _loadNotes();
     _searchController.addListener(_filterNotes);
+    
+    // ///////////////////////////////////////////////////////////////////////////
+    // REPERE : INITIALISATION (AUTOUR DE LA LIGNE 65)
+    // ///////////////////////////////////////////////////////////////////////////
+    _currentBackgroundColor = _baseColor; // Calcule le fond initial au démarrage
   }
 
+  
   @override
   void dispose() {
     _searchController.dispose();
@@ -161,9 +173,28 @@ class _NotesListScreenState extends State<NotesListScreen> {
     } catch (_) {}
   }
 
+   void _updateColorLighting(double value) {
+    setState(() {
+      _colorIntensity = value;
+      if (value < 1.0) {
+        // Mode sombre : On fusionne progressivement la couleur avec du noir
+        _currentBackgroundColor = Color.lerp(Colors.black, _baseColor, value)!;
+      } else {
+        // Mode clair : On fusionne progressivement la couleur avec du blanc
+        _currentBackgroundColor = Color.lerp(_baseColor, Colors.white, value - 1.0)!;
+      }
+    });
+  } // <-- CETTE ACCOLADE ÉTAIT MANQUANTE ET CAUSAIT LE SOULIGNEMENT ROUGE
+
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message), 
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -171,21 +202,46 @@ class _NotesListScreenState extends State<NotesListScreen> {
       backgroundColor: _currentBackgroundColor,
       appBar: AppBar(
         title: const Text('Mes Notes', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: _currentBackgroundColor.withOpacity(0.8),
+        backgroundColor: _currentBackgroundColor,
+        elevation: 0, // Fusionne l'AppBar avec le fond pour un rendu plus propre
         actions: [
           IconButton(icon: const Icon(Icons.file_download), onPressed: _importNotesFromTxt),
           IconButton(icon: const Icon(Icons.file_upload), onPressed: _exportNotesAsTxt),
+          
+          // Sélecteur pour changer la teinte de base
           PopupMenuButton<Color>(
             icon: const Icon(Icons.palette_outlined),
-            onSelected: (c) => setState(() => _currentBackgroundColor = c),
+            tooltip: 'Choisir la teinte de base',
+            onSelected: (Color selectedColor) {
+              _baseColor = selectedColor;
+              _updateColorLighting(_colorIntensity); // Recalcule instantanément le fond
+            },
             itemBuilder: (b) => [
               const PopupMenuItem(value: Color(0xFFFFF8E1), child: Text('Jaune')),
-              const PopupMenuItem(value: Color(0xFFE3F2FD), child: Text('Bleu')),
+              const PopupMenuItem(value: Color(0xFF002244), child: Text('Bleu Marine')),
               const PopupMenuItem(value: Color(0xFFE8F5E9), child: Text('Vert')),
             ],
           ),
+          
+          // La réglette manuelle intégrée (Slider)
+          Container(
+            width: 130, // Taille optimisée pour ne pas déborder sur les smartphones
+            padding: const EdgeInsets.only(right: 8),
+            child: Slider(
+              value: _colorIntensity,
+              min: 0.2, // Limite pour ne pas atteindre le noir complet
+              max: 1.8, // Limite pour ne pas atteindre le blanc pur
+              activeColor: Colors.white,
+              inactiveColor: Colors.white.withOpacity(0.3),
+              onChanged: (double value) {
+                _updateColorLighting(value); // Applique le gamma en temps réel
+              },
+            ),
+          ),
         ],
       ),
+      // Le reste de votre structure (body: Column, etc.) reste inchangé...
+
       body: Column(
         children: [
           Padding(
