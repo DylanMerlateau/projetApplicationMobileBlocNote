@@ -29,7 +29,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
 class Note {
   String title;
   String content;
@@ -59,12 +58,8 @@ class NotesListScreen extends StatefulWidget {
 
 class _NotesListScreenState extends State<NotesListScreen> {
   List<Note> _notes = [];
-   // --- À REMPLACER DANS LES VARIABLES DE VOTRE ÉCRAN ---
-  // On définit le Bleu Marine (0xFF002244) par défaut
   Color _baseColor = const Color(0xFF002244); 
-  // Valeur de la réglette (0.0 = Noir complet, 1.0 = Couleur pure, 2.0 = Blanc éclatant)
   double _colorIntensity = 1.0; 
-  // La couleur finale qui sera appliquée à l'écran
   late Color _currentBackgroundColor;
   List<Note> _filteredNotes = [];
   final TextEditingController _searchController = TextEditingController();
@@ -76,21 +71,15 @@ class _NotesListScreenState extends State<NotesListScreen> {
     super.initState();
     _loadNotes();
     _searchController.addListener(_filterNotes);
-    
-    // ///////////////////////////////////////////////////////////////////////////
-    // REPERE : INITIALISATION (AUTOUR DE LA LIGNE 65)
-    // ///////////////////////////////////////////////////////////////////////////
-    _currentBackgroundColor = _baseColor; // Calcule le fond initial au démarrage
+    _currentBackgroundColor = _baseColor; 
   }
 
-  
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
-
-  void _filterNotes() {
+ void _filterNotes() {
     final query = _searchController.text.toLowerCase().trim();
     setState(() {
       if (query.isEmpty) {
@@ -113,7 +102,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
       _notes = decodedList.map((item) => Note.fromMap(item)).toList();
     } else {
       _notes = [
-        Note(title: "⚡ Idées Flutter", content: "Ajouter des animations de transition.", date: "28 Oct"),
+        Note(title: "⚡ Idées Flutter", content: "Ajouter des animations de transition.", date: "29 Oct 2026, 15:49"),
       ];
       _saveNotes();
     }
@@ -126,12 +115,11 @@ class _NotesListScreenState extends State<NotesListScreen> {
     final String encodedData = jsonEncode(jsonList);
     await prefs.setString('saved_notes', encodedData);
   }
-
   Future<void> _exportNotesAsTxt() async {
     if (_notes.isEmpty) return;
     StringBuffer txtBuffer = StringBuffer();
     for (var note in _notes) {
-      txtBuffer.write("\n$_noteSeparator\nTITRE : ${note.title}\nCONTENU :\n${note.content}\n");
+      txtBuffer.write("\n$_noteSeparator\nTITRE : ${note.title}\nDATE : ${note.date}\nCONTENU :\n${note.content}\n");
     }
     List<int> bytes = utf8.encode(txtBuffer.toString());
     Uint8List nativeBytes = Uint8List.fromList(bytes);
@@ -162,8 +150,18 @@ class _NotesListScreenState extends State<NotesListScreen> {
       if (files.isNotEmpty) {
         final file = files.first;
         final fileContent = utf8.decode(await file.readAsBytes());
+        
+        final now = DateTime.now();
+        final List<String> months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+        final String minuteStr = now.minute < 10 ? '0${now.minute}' : '${now.minute}';
+        final String currentTimestamp = "${now.day} ${months[now.month - 1]} ${now.year}, ${now.hour}:$minuteStr";
+
         setState(() {
-          _notes.add(Note(title: file.name.split('.').first, content: fileContent, date: '28 Oct'));
+          _notes.add(Note(
+            title: file.name.split('.').first, 
+            content: fileContent, 
+            date: currentTimestamp,
+          ));
         });
         await _saveNotes();
         _searchController.clear();
@@ -173,28 +171,22 @@ class _NotesListScreenState extends State<NotesListScreen> {
     } catch (_) {}
   }
 
-   void _updateColorLighting(double value) {
+  void _updateColorLighting(double value) {
     setState(() {
       _colorIntensity = value;
       if (value < 1.0) {
-        // Mode sombre : On fusionne progressivement la couleur avec du noir
         _currentBackgroundColor = Color.lerp(Colors.black, _baseColor, value)!;
       } else {
-        // Mode clair : On fusionne progressivement la couleur avec du blanc
         _currentBackgroundColor = Color.lerp(_baseColor, Colors.white, value - 1.0)!;
       }
     });
-  } // <-- CETTE ACCOLADE ÉTAIT MANQUANTE ET CAUSAIT LE SOULIGNEMENT ROUGE
+  }
 
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message), 
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -203,18 +195,16 @@ class _NotesListScreenState extends State<NotesListScreen> {
       appBar: AppBar(
         title: const Text('Mes Notes', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: _currentBackgroundColor,
-        elevation: 0, // Fusionne l'AppBar avec le fond pour un rendu plus propre
+        elevation: 0, 
         actions: [
           IconButton(icon: const Icon(Icons.file_download), onPressed: _importNotesFromTxt),
           IconButton(icon: const Icon(Icons.file_upload), onPressed: _exportNotesAsTxt),
-          
-          // Sélecteur pour changer la teinte de base
           PopupMenuButton<Color>(
             icon: const Icon(Icons.palette_outlined),
             tooltip: 'Choisir la teinte de base',
             onSelected: (Color selectedColor) {
               _baseColor = selectedColor;
-              _updateColorLighting(_colorIntensity); // Recalcule instantanément le fond
+              _updateColorLighting(_colorIntensity); 
             },
             itemBuilder: (b) => [
               const PopupMenuItem(value: Color(0xFFFFF8E1), child: Text('Jaune')),
@@ -222,26 +212,22 @@ class _NotesListScreenState extends State<NotesListScreen> {
               const PopupMenuItem(value: Color(0xFFE8F5E9), child: Text('Vert')),
             ],
           ),
-          
-          // La réglette manuelle intégrée (Slider)
           Container(
-            width: 130, // Taille optimisée pour ne pas déborder sur les smartphones
+            width: 130, 
             padding: const EdgeInsets.only(right: 8),
             child: Slider(
               value: _colorIntensity,
-              min: 0.2, // Limite pour ne pas atteindre le noir complet
-              max: 1.8, // Limite pour ne pas atteindre le blanc pur
+              min: 0.2, 
+              max: 1.8, 
               activeColor: Colors.white,
               inactiveColor: Colors.white.withOpacity(0.3),
               onChanged: (double value) {
-                _updateColorLighting(value); // Applique le gamma en temps réel
+                _updateColorLighting(value); 
               },
             ),
           ),
         ],
       ),
-      // Le reste de votre structure (body: Column, etc.) reste inchangé...
-
       body: Column(
         children: [
           Padding(
@@ -253,124 +239,125 @@ class _NotesListScreenState extends State<NotesListScreen> {
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: _filteredNotes.length,
-              itemBuilder: (context, index) {
-                final note = _filteredNotes[index];
-                
-                return Dismissible(
-                  key: Key(note.title + note.date + index.toString()), // Clé unique pour Flutter
-                  direction: DismissDirection.endToStart, // Autorise le balayage uniquement de la droite vers la gauche
-                  background: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade700,
-                      borderRadius: BorderRadius.circular(12),
+            child: _filteredNotes.isEmpty
+                ? Center(
+                    child: Text(
+                      _notes.isEmpty ? 'Aucune note pour le moment' : 'Aucun résultat trouvé',
+                      style: TextStyle(color: theme.colorScheme.outline),
                     ),
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  confirmDismiss: (direction) async {
-                    // Petite pop-up de confirmation système avant suppression brute
-                    return await showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: const Text("Supprimer la note ?"),
-                          content: Text("Êtes-vous sûr de vouloir supprimer '${note.title}' ?"),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text("Annuler"),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text("Supprimer", style: TextStyle(color: Colors.red)),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                  onDismissed: (direction) async {
-                    // 1. On trouve l'index réel de la note dans la liste principale non filtrée
-                    final int realIndex = _notes.indexOf(note);
-                    
-                    if (realIndex != -1) {
-                      // 2. On garde une copie de la note en mémoire au cas où l'utilisateur annule
-                      final Note backupNote = _notes[realIndex];
-
-                      setState(() {
-                        _notes.removeAt(realIndex); // Supprime de la liste principale
-                        _filterNotes(); // Rafraîchit instantanément l'affichage filtré
-                      });
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _filteredNotes.length,
+                    itemBuilder: (context, index) {
+                      final note = _filteredNotes[index];
                       
-                      // 3. Met à jour la mémoire interne du smartphone
-                      await _saveNotes();
-
-                      // 4. Affiche un bandeau en bas avec un bouton "ANNULER"
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).clearSnackBars(); // Nettoie les anciennes alertes
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text("Note '${backupNote.title}' supprimée"),
-                            behavior: SnackBarBehavior.floating,
-                            action: SnackBarAction(
-                              label: "ANNULER",
-                              onPressed: () async {
-                                // Si l'utilisateur clique sur Annuler, on réinsère la note au même endroit
-                                setState(() {
-                                  _notes.insert(realIndex, backupNote);
-                                  _filterNotes();
-                                });
-                                await _saveNotes(); // On resauvegarde
-                              },
-                            ),
+                      return Dismissible(
+                        key: Key(note.title + note.date + index.toString()), 
+                        direction: DismissDirection.endToStart, 
+                        background: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade700,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        );
-                      }
-                    }
-                  },
-                  // Votre carte graphique d'origine vient s'imbriquer à l'intérieur ici :
-                  child: Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      title: Text(
-                        note.title,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 6.0),
-                        child: Text(
-                          note.content,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          child: const Icon(Icons.delete, color: Colors.white),
                         ),
-                      ),
-                      onTap: () async {
-                        final edited = await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (c) => NoteFormScreen(note: note)),
-                        );
-                        if (edited != null) {
-                          final realIdx = _notes.indexOf(note);
-                          if (realIdx != -1) {
+                        confirmDismiss: (direction) async {
+                          return await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("Supprimer la note ?"),
+                                content: Text("Êtes-vous sûr de vouloir supprimer '${note.title}' ?"),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(context).pop(false),
+                                    child: const Text("Annuler"),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.of(context).pop(true),
+                                    child: const Text("Supprimer", style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                        onDismissed: (direction) async {
+                          final int realIndex = _notes.indexOf(note);
+                          if (realIndex != -1) {
+                            final Note backupNote = _notes[realIndex];
                             setState(() {
-                              _notes[realIdx] = edited;
+                              _notes.removeAt(realIndex); 
+                              _filterNotes(); 
                             });
-                            _saveNotes();
-                            _filterNotes();
+                            await _saveNotes();
+
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).clearSnackBars(); 
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Note '${backupNote.title}' supprimée"),
+                                  behavior: SnackBarBehavior.floating,
+                                  action: SnackBarAction(
+                                    label: "ANNULER",
+                                    onPressed: () async {
+                                      setState(() {
+                                        _notes.insert(realIndex, backupNote);
+                                        _filterNotes();
+                                      });
+                                      await _saveNotes(); 
+                                    },
+                                  ),
+                                ),
+                              );
+                            }
                           }
-                        }
-                      },
-                    ),
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            title: Text(
+                              note.title,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 6.0),
+                              child: Text(
+                                note.content,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            trailing: Text(
+                              note.date,
+                              style: TextStyle(color: theme.colorScheme.outline, fontSize: 11),
+                            ),
+                            onTap: () async {
+                              final edited = await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (c) => NoteFormScreen(note: note)),
+                              );
+                              if (edited != null) {
+                                final realIdx = _notes.indexOf(note);
+                                if (realIdx != -1) {
+                                  setState(() {
+                                    _notes[realIdx] = edited;
+                                  });
+                                  _saveNotes();
+                                  _filterNotes();
+                                }
+                              }
+                            },
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -387,7 +374,6 @@ class _NotesListScreenState extends State<NotesListScreen> {
     );
   }
 }
-
 class NoteFormScreen extends StatefulWidget {
   final Note? note;
   const NoteFormScreen({super.key, this.note});
@@ -461,16 +447,21 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
                 final String content = _contentController.text.trim();
 
                 if (title.isNotEmpty && content.isNotEmpty) {
+                  final now = DateTime.now();
+                  final List<String> months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+                  final String minuteStr = now.minute < 10 ? '0${now.minute}' : '${now.minute}';
+                  final String currentTimestamp = "${now.day} ${months[now.month - 1]} ${now.year}, ${now.hour}:$minuteStr";
+
                   if (isEditing) {
                     widget.note!.title = title;
                     widget.note!.content = content;
-                    widget.note!.date = '28 Oct (Modifié)';
+                    widget.note!.date = currentTimestamp; 
                     Navigator.pop(context, widget.note);
                   } else {
                     final Note newNote = Note(
                       title: title,
                       content: content,
-                      date: '28 Oct',
+                      date: currentTimestamp, 
                     );
                     Navigator.pop(context, newNote);
                   }
