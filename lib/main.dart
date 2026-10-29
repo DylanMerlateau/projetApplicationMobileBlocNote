@@ -258,17 +258,115 @@ class _NotesListScreenState extends State<NotesListScreen> {
               itemCount: _filteredNotes.length,
               itemBuilder: (context, index) {
                 final note = _filteredNotes[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(note.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(note.content, maxLines: 1),
-                    onTap: () async {
-                      final edited = await Navigator.push(context, MaterialPageRoute(builder: (c) => NoteFormScreen(note: note)));
-                      if (edited != null) {
-                        setState(() { _notes[_notes.indexOf(note)] = edited; });
-                        _saveNotes(); _filterNotes();
+                
+                return Dismissible(
+                  key: Key(note.title + note.date + index.toString()), // Clé unique pour Flutter
+                  direction: DismissDirection.endToStart, // Autorise le balayage uniquement de la droite vers la gauche
+                  background: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade700,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  confirmDismiss: (direction) async {
+                    // Petite pop-up de confirmation système avant suppression brute
+                    return await showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: const Text("Supprimer la note ?"),
+                          content: Text("Êtes-vous sûr de vouloir supprimer '${note.title}' ?"),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text("Annuler"),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text("Supprimer", style: TextStyle(color: Colors.red)),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                  onDismissed: (direction) async {
+                    // 1. On trouve l'index réel de la note dans la liste principale non filtrée
+                    final int realIndex = _notes.indexOf(note);
+                    
+                    if (realIndex != -1) {
+                      // 2. On garde une copie de la note en mémoire au cas où l'utilisateur annule
+                      final Note backupNote = _notes[realIndex];
+
+                      setState(() {
+                        _notes.removeAt(realIndex); // Supprime de la liste principale
+                        _filterNotes(); // Rafraîchit instantanément l'affichage filtré
+                      });
+                      
+                      // 3. Met à jour la mémoire interne du smartphone
+                      await _saveNotes();
+
+                      // 4. Affiche un bandeau en bas avec un bouton "ANNULER"
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).clearSnackBars(); // Nettoie les anciennes alertes
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("Note '${backupNote.title}' supprimée"),
+                            behavior: SnackBarBehavior.floating,
+                            action: SnackBarAction(
+                              label: "ANNULER",
+                              onPressed: () async {
+                                // Si l'utilisateur clique sur Annuler, on réinsère la note au même endroit
+                                setState(() {
+                                  _notes.insert(realIndex, backupNote);
+                                  _filterNotes();
+                                });
+                                await _saveNotes(); // On resauvegarde
+                              },
+                            ),
+                          ),
+                        );
                       }
-                    },
+                    }
+                  },
+                  // Votre carte graphique d'origine vient s'imbriquer à l'intérieur ici :
+                  child: Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      title: Text(
+                        note.title,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 6.0),
+                        child: Text(
+                          note.content,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      onTap: () async {
+                        final edited = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (c) => NoteFormScreen(note: note)),
+                        );
+                        if (edited != null) {
+                          final realIdx = _notes.indexOf(note);
+                          if (realIdx != -1) {
+                            setState(() {
+                              _notes[realIdx] = edited;
+                            });
+                            _saveNotes();
+                            _filterNotes();
+                          }
+                        }
+                      },
+                    ),
                   ),
                 );
               },
