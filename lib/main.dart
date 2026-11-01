@@ -31,7 +31,7 @@ class MyApp extends StatelessWidget {
   }
 }
 class Note {
-  String id; // Nouvel identifiant unique pour le partage
+  String id; 
   String title;
   String content;
   String date;
@@ -56,7 +56,6 @@ class Note {
     );
   }
 }
-
 
 class NotesListScreen extends StatefulWidget {
   const NotesListScreen({super.key});
@@ -115,7 +114,6 @@ class _NotesListScreenState extends State<NotesListScreen> {
       final List<dynamic> decodedList = jsonDecode(notesJson);
       _notes = decodedList.map((item) => Note.fromMap(item)).toList();
     } else {
-      // CORRECTION : Ajout de l'identifiant initial
       _notes = [
         Note(
           id: 'EXEMPLE-${DateTime.now().millisecondsSinceEpoch}',
@@ -176,8 +174,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
         final String minuteStr = now.minute < 10 ? '0${now.minute}' : '${now.minute}';
         final String currentTimestamp = "${now.day} ${months[now.month - 1]} ${now.year}, ${now.hour}:$minuteStr";
 
-                setState(() {
-          // CORRECTION : Génération d'un id unique basé sur le timestamp
+        setState(() {
           _notes.add(Note(
             id: 'IMPORT-${DateTime.now().millisecondsSinceEpoch}',
             title: file.name.split('.').first, 
@@ -191,6 +188,43 @@ class _NotesListScreenState extends State<NotesListScreen> {
         _showSnackBar("Importé avec succès !");
       }
     } catch (_) {}
+  }
+  void _showJoinNoteDialog() {
+    final TextEditingController codeController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Rejoindre une note"),
+          content: TextField(
+            controller: codeController,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              labelText: "Entrez le code à 6 caractères",
+              border: OutlineInputBorder(),
+              hintText: "EX: A7K9X2",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
+            ),
+            FilledButton(
+              onPressed: () {
+                final String code = codeController.text.trim().toUpperCase();
+                if (code.length == 6) {
+                  Navigator.pop(context);
+                  _showSnackBar("Connexion à la liste '$code'...");
+                }
+              },
+              child: const Text("Valider"),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _updateColorLighting(double value) {
@@ -221,6 +255,11 @@ class _NotesListScreenState extends State<NotesListScreen> {
         actions: [
           IconButton(icon: const Icon(Icons.file_download), onPressed: _importNotesFromTxt),
           IconButton(icon: const Icon(Icons.file_upload), onPressed: _exportNotesAsTxt),
+          IconButton(
+            icon: const Icon(Icons.cloud_sync_outlined),
+            tooltip: 'Rejoindre une note partagée',
+            onPressed: _showJoinNoteDialog,
+          ),
           PopupMenuButton<Color>(
             icon: const Icon(Icons.palette_outlined),
             tooltip: 'Choisir la teinte de base',
@@ -339,44 +378,62 @@ class _NotesListScreenState extends State<NotesListScreen> {
                             }
                           }
                         },
-                        child: Card(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            title: Text(
-                              note.title,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 6.0),
-                              child: Text(
-                                note.content,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            trailing: Text(
-                              note.date,
-                              style: TextStyle(color: theme.colorScheme.outline, fontSize: 11),
-                            ),
-                            onTap: () async {
-                              final edited = await Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (c) => NoteFormScreen(note: note)),
-                              );
-                              if (edited != null) {
-                                final realIdx = _notes.indexOf(note);
-                                if (realIdx != -1) {
-                                  setState(() {
-                                    _notes[realIdx] = edited;
-                                  });
-                                  _saveNotes();
-                                  _filterNotes();
-                                }
-                              }
-                            },
+                                          child: Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      title: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            note.title,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                           ),
+                          // Affiche l'ID sous forme de petit badge gris discret
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              note.id.length > 10 ? note.id.substring(0, 10) : note.id,
+                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 6.0),
+                        child: Text(
+                          note.content,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                      ),
+                      trailing: Text(
+                        note.date,
+                        style: TextStyle(color: theme.colorScheme.outline, fontSize: 11),
+                      ),
+                      onTap: () async {
+                        final edited = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (c) => NoteFormScreen(note: note)),
+                        );
+                        if (edited != null) {
+                          final realIdx = _notes.indexOf(note);
+                          if (realIdx != -1) {
+                            setState(() {
+                              _notes[realIdx] = edited;
+                            });
+                            _saveNotes();
+                            _filterNotes();
+                          }
+                        }
+                      },
+                    ),
+                  ),
+
                       );
                     },
                   ),
@@ -388,7 +445,6 @@ class _NotesListScreenState extends State<NotesListScreen> {
         onPressed: () async {
           final newNote = await Navigator.push(context, MaterialPageRoute(builder: (c) => const NoteFormScreen()));
           if (newNote != null) {
-            // CORRECTION : On s'assure que la note génère son ID si elle n'en a pas
             if (newNote.id.isEmpty) {
               newNote.id = 'LOCAL-${DateTime.now().millisecondsSinceEpoch}';
             }
@@ -442,9 +498,21 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+                      if (isEditing)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Code unique de partage : ${widget.note!.id}",
+                  style: TextStyle(color: theme.colorScheme.outline, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
             TextField(
               controller: _titleController,
               decoration: const InputDecoration(
+                
                 labelText: 'Titre',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.title),
@@ -484,7 +552,6 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
                     widget.note!.date = currentTimestamp; 
                     Navigator.pop(context, widget.note);
                   } else {
-                    // CORRECTION : Attribution d'un ID unique à la création
                     final Note newNote = Note(
                       id: 'NOTE-${DateTime.now().millisecondsSinceEpoch}',
                       title: title,
