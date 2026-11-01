@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart'; 
 import 'package:universal_html/html.dart' as html; 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math' as math;
 
 void main() {
   runApp(const MyApp());
@@ -30,24 +31,32 @@ class MyApp extends StatelessWidget {
   }
 }
 class Note {
+  String id; // Nouvel identifiant unique pour le partage
   String title;
   String content;
   String date;
-
-  Note({required this.title, required this.content, required this.date});
+  
+  Note({
+    required this.id,
+    required this.title,
+    required this.content,
+    required this.date,
+  });
 
   Map<String, dynamic> toMap() {
-    return {'title': title, 'content': content, 'date': date};
+    return {'id': id, 'title': title, 'content': content, 'date': date};
   }
-
+  
   factory Note.fromMap(Map<String, dynamic> map) {
     return Note(
+      id: map['id'] ?? '',
       title: map['title'] ?? '',
       content: map['content'] ?? '',
       date: map['date'] ?? '',
     );
   }
 }
+
 
 class NotesListScreen extends StatefulWidget {
   const NotesListScreen({super.key});
@@ -57,6 +66,11 @@ class NotesListScreen extends StatefulWidget {
 }
 
 class _NotesListScreenState extends State<NotesListScreen> {
+  String _generateShareCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = math.Random();
+    return List.generate(6, (index) => chars[random.nextInt(chars.length)]).join();
+  }
   List<Note> _notes = [];
   Color _baseColor = const Color(0xFF002244); 
   double _colorIntensity = 1.0; 
@@ -101,8 +115,14 @@ class _NotesListScreenState extends State<NotesListScreen> {
       final List<dynamic> decodedList = jsonDecode(notesJson);
       _notes = decodedList.map((item) => Note.fromMap(item)).toList();
     } else {
+      // CORRECTION : Ajout de l'identifiant initial
       _notes = [
-        Note(title: "⚡ Idées Flutter", content: "Ajouter des animations de transition.", date: "29 Oct 2026, 15:49"),
+        Note(
+          id: 'EXEMPLE-${DateTime.now().millisecondsSinceEpoch}',
+          title: "⚡ Idées Flutter", 
+          content: "Ajouter des animations de transition.", 
+          date: "29 Oct 2026, 15:49",
+        ),
       ];
       _saveNotes();
     }
@@ -156,8 +176,10 @@ class _NotesListScreenState extends State<NotesListScreen> {
         final String minuteStr = now.minute < 10 ? '0${now.minute}' : '${now.minute}';
         final String currentTimestamp = "${now.day} ${months[now.month - 1]} ${now.year}, ${now.hour}:$minuteStr";
 
-        setState(() {
+                setState(() {
+          // CORRECTION : Génération d'un id unique basé sur le timestamp
           _notes.add(Note(
+            id: 'IMPORT-${DateTime.now().millisecondsSinceEpoch}',
             title: file.name.split('.').first, 
             content: fileContent, 
             date: currentTimestamp,
@@ -366,11 +388,15 @@ class _NotesListScreenState extends State<NotesListScreen> {
         onPressed: () async {
           final newNote = await Navigator.push(context, MaterialPageRoute(builder: (c) => const NoteFormScreen()));
           if (newNote != null) {
+            // CORRECTION : On s'assure que la note génère son ID si elle n'en a pas
+            if (newNote.id.isEmpty) {
+              newNote.id = 'LOCAL-${DateTime.now().millisecondsSinceEpoch}';
+            }
             setState(() { _notes.add(newNote); });
             _saveNotes(); _filterNotes();
           }
         },
-      ),
+      )
     );
   }
 }
@@ -458,7 +484,9 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
                     widget.note!.date = currentTimestamp; 
                     Navigator.pop(context, widget.note);
                   } else {
+                    // CORRECTION : Attribution d'un ID unique à la création
                     final Note newNote = Note(
+                      id: 'NOTE-${DateTime.now().millisecondsSinceEpoch}',
                       title: title,
                       content: content,
                       date: currentTimestamp, 
