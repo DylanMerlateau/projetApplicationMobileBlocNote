@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "40680590814",
+    "project_id": "bloc-note-famille",
+    "storage_bucket": "bloc-note-famille.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:40680590814:android:0ba625f755509fb6c6214f",
+        "android_client_info": {
+          "package_name": "com.example.flutter_create_bloc_note"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBXzKbGoSiU760RZDPoyg_TwTiIMphRNhA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
