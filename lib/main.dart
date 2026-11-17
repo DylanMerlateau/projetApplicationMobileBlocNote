@@ -8,6 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:math' as math;
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'auth_screen.dart';
+import 'cloud_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,31 +40,41 @@ class MyApp extends StatelessWidget {
   }
 }
 class Note {
-  String id; 
+  String id;
   String title;
   String content;
   String date;
-  
+  List<String> sharedWith; // Liste des numéros autorisés (ex: ["+33612345678"])
+
   Note({
     required this.id,
     required this.title,
     required this.content,
     required this.date,
+    this.sharedWith = const [],
   });
 
   Map<String, dynamic> toMap() {
-    return {'id': id, 'title': title, 'content': content, 'date': date};
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'date': date,
+      'sharedWith': sharedWith,
+    };
   }
-  
+
   factory Note.fromMap(Map<String, dynamic> map) {
     return Note(
       id: map['id'] ?? '',
       title: map['title'] ?? '',
       content: map['content'] ?? '',
       date: map['date'] ?? '',
+      sharedWith: List<String>.from(map['sharedWith'] ?? []),
     );
   }
 }
+
 
 class NotesListScreen extends StatefulWidget {
   const NotesListScreen({super.key});
@@ -279,6 +292,28 @@ class _NotesListScreenState extends State<NotesListScreen> {
               const PopupMenuItem(value: Color(0xFFE8F5E9), child: Text('Vert')),
             ],
           ),
+          IconButton(
+            icon: Icon(
+              FirebaseAuth.instance.currentUser != null
+                  ? Icons.cloud_done
+                  : Icons.cloud_off,
+              color: FirebaseAuth.instance.currentUser != null
+                  ? Colors.greenAccent
+                  : Colors.white,
+            ),
+            tooltip: 'Connexion Cloud par SMS',
+            onPressed: () async {
+              final connected = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (c) => const AuthScreen()),
+              );
+              if (connected == true) {
+                setState(() {});
+                _showSnackBar("Connecté avec le numéro ${CloudService.currentUserPhone}");
+              }
+            },
+          ),
+
           Container(
             width: 130, 
             padding: const EdgeInsets.only(right: 8),
